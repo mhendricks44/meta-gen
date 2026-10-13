@@ -7,9 +7,79 @@ import {
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { and, eq, desc } from "drizzle-orm";
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
-const sqlite = new Database(process.env.DATABASE_PATH || "data.db");
+const DB_PATH = process.env.DATABASE_PATH || "data.db";
+mkdirSync(dirname(resolve(DB_PATH)), { recursive: true });
+const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
+
+// Create tables on startup if they don't exist, so no separate db:push step is needed on a host.
+// Mirrors shared/schema.ts.
+sqlite.exec(`
+CREATE TABLE IF NOT EXISTS interests (
+  id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  member_id integer NOT NULL,
+  opportunity_id integer NOT NULL,
+  note text,
+  created_at text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS members (
+  id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  name text NOT NULL,
+  email text NOT NULL,
+  affiliation text,
+  working_on text,
+  can_help_with text,
+  joined_at text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS members_email_unique ON members (email);
+CREATE TABLE IF NOT EXISTS opportunities (
+  id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  title text NOT NULL,
+  org text,
+  kind text NOT NULL,
+  lane text NOT NULL,
+  source text NOT NULL,
+  value text,
+  is_paid integer DEFAULT false NOT NULL,
+  location text NOT NULL,
+  location_detail text,
+  deadline text,
+  deadline_note text,
+  eligibility text,
+  requirements text,
+  why_it_matters text NOT NULL,
+  details text,
+  action_type text NOT NULL,
+  action_url text,
+  contact text,
+  posted_by_id integer,
+  posted_by_name text NOT NULL,
+  status text DEFAULT 'pending' NOT NULL,
+  created_at text NOT NULL,
+  last_verified text,
+  opens integer DEFAULT 0 NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reports (
+  id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  opportunity_id integer NOT NULL,
+  member_id integer,
+  reason text NOT NULL,
+  note text,
+  resolved integer DEFAULT false NOT NULL,
+  created_at text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tracks (
+  id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  member_id integer NOT NULL,
+  opportunity_id integer NOT NULL,
+  status text NOT NULL,
+  would_have_missed integer,
+  updated_at text NOT NULL
+);
+`);
 
 export const db = drizzle(sqlite);
 
